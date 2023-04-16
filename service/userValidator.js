@@ -14,6 +14,15 @@ const userSchema = Joi.object({
   password: Joi.string().required(),
 });
 
-exports.validateUser = validator(userSchema);
+const resendSchema = Joi.object({
+  email: Joi.string()
+    .email({
+      minDomainSegments: 2,
+      tlds: { allow: ["pl", "com", "net", "eu"] },
+    })
+    .required(),
+})
 
+exports.validateUser = validator(userSchema);
+exports.validateResend = validator(resendSchema);
 
