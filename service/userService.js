@@ -1,11 +1,17 @@
-const { User } = require("../models/usersSchema");
+const { User } = require('../models/usersSchema');
 const gravatar = require('gravatar');
+const sendMail = require('../service/sendGrid');
+const { uuid } = require('uuid');
 
 const signUpNewUser = async (email, password) => {
-  const avatarURL = gravatar.url(email, {s: '200', r: 'pg'});
-  const newUser = new User({ email, avatarURL });
-  newUser.setPassword(password);
-  return await newUser.save();
+  const avatarURL = gravatar.url(email, { s: '200', r: 'pg' });
+  const verificationToken = uuid();
+  const newUser = new User({ email, avatarURL, verificationToken});
+  await newUser.setPassword(password);
+  await sendMail(email, verificationToken);
+  await newUser.save();
+
+  return newUser;
 };
 
 const findUserByEmail = async (email) => {
@@ -17,7 +23,17 @@ const findUserByIdAndUpdate = async (id, token) => {
 };
 
 const updateAvatar = (id, avatarURL) =>
-	User.findByIdAndUpdate(id, { avatarURL });
+  User.findByIdAndUpdate(id, { avatarURL });
+  
+const updateVerificationToken = async (verificationToken) => {
+  return await User.findOneAndUpdate(
+    { verificationToken },
+    {
+      verificationToken: null,
+      verify: true,
+    }
+  );
+};
 
 
 module.exports = {
@@ -25,4 +41,5 @@ module.exports = {
   findUserByEmail,
   findUserByIdAndUpdate,
   updateAvatar,
+  updateVerificationToken,
 };
