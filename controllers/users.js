@@ -2,10 +2,11 @@ const service = require('../service/userService.js')
 const jwt = require('jsonwebtoken')
 require('dotenv').config()
 const secret = process.env.JWT_SECRET
-const { validateUser } = require('../service/userValidator')
+const { validateUser, validateResend } = require('../service/userValidator')
 const Jimp = require("jimp");
 const path = require("path");
 const fs = require("fs").promises;
+const sendMail = require("../service/sendGrid");
 
 const signUp = async (req, res, next) => {
   const { email, password } = req.body
@@ -32,7 +33,8 @@ const signUp = async (req, res, next) => {
       data: {
         email: newUser.email,
         subscription: newUser.subscription,
-        avatarURL: newUser.avatarURL
+        avatarURL: newUser.avatarURL,
+        verificationToken: newUser.verificationToken,
       },
     })
   } catch (error) {
@@ -72,6 +74,9 @@ const logIn = async (req, res, next) => {
           email: user.email,
           subscription: user.subscription,
           avatarURL: user.avatarURL,
+          verificationToken: user.verificationToken,
+          id: user.id,
+          verify: user.verify,
         },
         msg: `Login successful. ${user.email}`,
       })
@@ -92,11 +97,11 @@ const logOut = async (req, res, next) => {
 }
 
 const current = async (req, res, next) => {
-  const { email, subscription } = req.user
+  const { email, subscription, verificationToken } = req.user
   try {
     res.status(200).json({
       status: 'OK',
-      body: { email, subscription },
+      body: { email, subscription,verificationToken },
     })
   } catch (error) {
     next(error)
@@ -131,10 +136,52 @@ const avatar = async (req, res, next) => {
   }
 };
 
+const emailVerification = async(req, res, next) => {
+  const { verificationToken } = req.params;  
+  try {
+    const user = await service.updateVerificationToken(verificationToken);
+    if (user) {
+      return res.status(200).json({ msg: "Verification successful" });
+    } else {
+        return res.status(404).json({ msg: "User not found" });
+    }
+  } catch (error){
+    next(error);
+  }
+};
+
+const resendEmailVerification = async(req, res, next) => {
+  const { email } = req.body;
+  const { error } = await validateResend({ email });
+  if (error) {
+    console.log(error);
+    return res.json({ status: 400, msg: "Missing fields" });
+  }
+  try {
+    const user = await service.findUserByEmail({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    
+    } else if (user.verify) {
+      return res.status(400).json({ message: "Verification has already been passed" });
+    
+    } else {
+      await sendMail(email, user.verificationToken);
+      return res.status(200).json({ message: "Verification email sent" });
+    }   
+
+  } catch (error){
+    next(error);
+  }
+}
+
 module.exports = {
   signUp,
   logIn,
   logOut,
   current,
   avatar,
+  emailVerification,
+  resendEmailVerification,
+  
 }
