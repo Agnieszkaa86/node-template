@@ -7,6 +7,11 @@ const authorization = (req, res, next) => {
        message: "Unauthorized",
       });
     }
+     if(!user.verify) {
+      return res.status(401).json({
+       message: "Email not verified",
+      });
+  }
     req.user = user;
     next();
   })(req, res, next);
